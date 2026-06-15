@@ -1,0 +1,90 @@
+# ============================================
+# NotiQue — Project-wide .gitignore
+# Covers: notique-main (Expo frontend),
+#         notique-lambda (backend), bridge (WhatsApp)
+# ============================================
+
+# ---------- Dependencies (all folders) ----------
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# ---------- Environment / secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+
+# ============================================
+# Frontend (notique-main — Expo)
+# ============================================
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# generated native folders
+/notique-main/ios
+/notique-main/android
+
+# ============================================
+# Backend (notique-lambda)
+# ============================================
+
+# build output / packaged zips for Lambda deploy
+notique-lambda/dist/
+notique-lambda/build/
+notique-lambda/*.zip
+notique-lambda/.aws-sam/
+
+# Serverless framework (if used)
+.serverless/
+
+# ============================================
+# WhatsApp Bridge (bridge — EC2)
+# ============================================
+
+# whatsapp-web.js persistent session data — never commit
+bridge/.wwebjs_auth/
+bridge/.wwebjs_cache/
+**/.wwebjs_auth/
+**/.wwebjs_cache/
+
+# pm2 logs
+bridge/logs/
+*.log
+
+# ============================================
+# General
+# ============================================
+
+# debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+
+# typescript
+*.tsbuildinfo
+
+# editor
+.vscode/
+.idea/
