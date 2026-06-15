@@ -20,7 +20,20 @@ module.exports = async (event) => {
   if (method === 'POST') {
     const body = JSON.parse(event.body);
     const existing = await readJSON(`users/${userId}/settings.json`) || {};
-    const updated = { ...existing, ...body };
+
+    const updated = {
+      ...existing,
+      ...body,
+      sources: {
+        ...(existing.sources || {}),
+        ...(body.sources || {})
+      },
+      notifications: {
+        ...(existing.notifications || {}),
+        ...(body.notifications || {})
+      }
+    };
+
     await writeJSON(`users/${userId}/settings.json`, updated);
     return {
       statusCode: 200,

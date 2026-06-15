@@ -1,16 +1,16 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const axios   = require('axios');
+const axios = require('axios');
 const express = require('express');
-const fs      = require('fs');
-const path    = require('path');
+const fs = require('fs');
+const path = require('path');
 
 const API_BASE_URL = 'https://dxn479xqd0.execute-api.us-east-1.amazonaws.com/prod';
-const USER_ID      = 'cd9aeda6-be77-413c-97ed-5fe678b612f3';
+const USER_ID = 'cd9aeda6-be77-413c-97ed-5fe678b612f3';
 const EXPRESS_PORT = 3001;
 
 let TRACKED_GROUPS = [];
-let isConnected    = false;
-let pairingCode    = null;
+let isConnected = false;
+let pairingCode = null;
 
 let client = new Client({
   authStrategy: new LocalAuth(),
@@ -34,11 +34,11 @@ function attachClientListeners(c) {
   });
   c.on('message', async (msg) => {
     if (!msg.from.includes('@g.us')) return;
-    const chat      = await msg.getChat();
+    const chat = await msg.getChat();
     const groupName = chat.name;
     if (!TRACKED_GROUPS.includes(groupName)) return;
     const contact = await msg.getContact();
-    const sender  = contact.pushname || contact.number;
+    const sender = contact.pushname || contact.number;
     try {
       await axios.post(`${API_BASE_URL}/ingest`, {
         source: 'whatsapp', groupName, senderName: sender,
@@ -58,8 +58,6 @@ client.initialize();
 const app = express();
 app.use(express.json());
 
-// ── Shared helper: destroy current client, wipe session, create fresh one,
-// initialize, and request a pairing code for the given phone number ───────
 async function resetAndRequestCode(phoneNumber) {
   console.log('=== Destroying old client ===');
   try {
@@ -108,9 +106,6 @@ app.post('/pair', async (req, res) => {
   if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
 
   try {
-    // Always perform a full reset + request a fresh pairing code,
-    // even if a session is already connected — this lets the onboarding
-    // flow demo the real "enter code on WhatsApp" experience.
     const code = await resetAndRequestCode(phoneNumber);
     res.json({ pairingCode: code, expiresIn: 60 });
   } catch (err) {
@@ -124,12 +119,12 @@ app.post('/status', (req, res) => {
 
 app.get('/groups', async (req, res) => {
   try {
-    const chats  = await client.getChats();
+    const chats = await client.getChats();
     const groups = chats
       .filter(c => c.isGroup)
       .map(c => ({
-        id:           c.id._serialized,
-        name:         c.name,
+        id: c.id._serialized,
+        name: c.name,
         participants: c.participants?.length || 0
       }));
     res.json({ groups });
@@ -138,7 +133,6 @@ app.get('/groups', async (req, res) => {
   }
 });
 
-// ── Resend pairing code — async, non-blocking ─────────────────
 app.post('/bridge/reset-session', async (req, res) => {
   const { phoneNumber } = req.body;
   if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
@@ -157,7 +151,6 @@ app.post('/bridge/reset-session', async (req, res) => {
   })();
 });
 
-// ── Poll for the new pairing code ──────────────────────────────
 app.get('/bridge/pairing-code', (req, res) => {
   if (pairingCode === null) return res.json({ ready: false });
   if (pairingCode === 'ERROR') return res.json({ ready: true, error: 'Failed to generate code' });
@@ -173,7 +166,7 @@ async function refreshSettings() {
     const res = await axios.get(`${API_BASE_URL}/settings`, { headers: { 'x-user-id': USER_ID } });
     TRACKED_GROUPS = res.data.trackedGroups || [];
     console.log('Groups:', TRACKED_GROUPS);
-  } catch(e) {
+  } catch (e) {
     console.error('Settings poll failed:', e.message);
   }
 }

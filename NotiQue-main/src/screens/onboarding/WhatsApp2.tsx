@@ -16,6 +16,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../config/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API } from '../../config/api';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 

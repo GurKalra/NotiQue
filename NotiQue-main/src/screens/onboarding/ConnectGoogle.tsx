@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -31,7 +32,7 @@ interface ConnectGoogleProps {
 
 // ── Google OAuth config ─────────────────────────────────────────
 const GOOGLE_CLIENT_ID =
-  '977086704137-a8tg1h2fdpftd700ivgej31jn8liebnk.apps.googleusercontent.com';
+  '977086704137-iluash2b6m7p76nkv3kovei15crm9c4i.apps.googleusercontent.com';
 
 const GOOGLE_SCOPES = [
   'openid',
@@ -39,7 +40,7 @@ const GOOGLE_SCOPES = [
   'email',
   'https://www.googleapis.com/auth/classroom.courses.readonly',
   'https://www.googleapis.com/auth/classroom.student-submissions.me.readonly',
-  //'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.readonly',
 ];
 
 const discovery = {
@@ -54,14 +55,11 @@ export default function ConnectGoogle({
   const [loading, setLoading] = useState(false);
 
   const redirectUri = AuthSession.makeRedirectUri({
-    // @ts-ignore — useProxy is required for Expo Go
-    useProxy: true,
-    // @ts-ignore — useProxy is required for Expo Go
-    projectNameForProxy: '@notique-dev/notiQue',
+    scheme: 'com.notiquedev.notiQue',
   });
 
-console.log("=== REDIRECT URI ===");
-console.log(redirectUri);
+  console.log("=== REDIRECT URI ===");
+  console.log(redirectUri);
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
@@ -75,74 +73,53 @@ console.log(redirectUri);
   );
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const { code } = response.params;
+    const handleUrl = (event: { url: string }) => {
+      const url = event.url;
+      console.log('=== INCOMING URL ===', url);
+      const parsed = Linking.parse(url);
+      const code = parsed.queryParams?.code as string | undefined;
       if (code && request?.codeVerifier) {
-        handleAuthSuccess(code, request.codeVerifier, redirectUri);
-      } else {
-        setLoading(false);
-        Alert.alert('Something went wrong', 'No authorization code received. Please try again.');
+        handleAuthSuccess(code, request.codeVerifier);
       }
-    } else if (response?.type === 'error') {
-      setLoading(false);
-      Alert.alert('Sign-in cancelled', 'Google sign-in was cancelled or failed.');
-    } else if (response?.type === 'cancel' || response?.type === 'dismiss') {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response]);
+    };
 
-  const handleAuthSuccess = async (
-    code: string,
-    codeVerifier: string,
-    redirectUriUsed: string
-  ): Promise<void> => {
+    const subscription = Linking.addEventListener('url', handleUrl);
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
+  const handleAuthSuccess = async (code: string, codeVerifier: string): Promise<void> => {
     try {
-      // Exchange the authorization code for tokens via our backend
-      // (keeps the client secret server-side)
-      const tokenRes = await fetch(API.googleToken, {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
           code,
-          codeVerifier,
-          redirectUri: redirectUriUsed,
-        }),
+          code_verifier: codeVerifier,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }).toString(),
       });
 
-      if (!tokenRes.ok) {
-        throw new Error('Token exchange failed');
-      }
-
       const tokenData = await tokenRes.json();
+      console.log('=== TOKEN DATA ===', JSON.stringify(tokenData));
       const accessToken = tokenData.access_token;
+      if (!accessToken) throw new Error('No access token');
 
-      if (!accessToken) {
-        throw new Error('No access token received');
-      }
-
-      // Fetch real user info from Google
-      const userInfoRes = await fetch(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (!userInfoRes.ok) {
-        throw new Error('Failed to fetch user info');
-      }
-
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const userInfo = await userInfoRes.json();
-      // userInfo: { id, email, name, given_name, family_name, picture, ... }
 
-      // Store the Google access token (and refresh token if provided) for later sync calls
       await AsyncStorage.setItem('googleAccessToken', accessToken);
-      if (tokenData.refresh_token) {
-        await AsyncStorage.setItem('googleRefreshToken', tokenData.refresh_token);
-      }
       await AsyncStorage.setItem('googleEmail', userInfo.email ?? '');
       await AsyncStorage.setItem('googleName', userInfo.name ?? '');
 
-      // Register (or re-register) the user with their real Google identity
       const res = await fetch(API.register, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,39 +129,42 @@ console.log(redirectUri);
           deviceToken: 'placeholder-device-token',
         }),
       });
-
-      if (!res.ok) {
-        throw new Error('Registration failed');
-      }
-
       const data = await res.json();
       await AsyncStorage.setItem('userId', data.userId);
-
       navigation.navigate('WhatsApp1');
     } catch (err) {
-      Alert.alert(
-        'Something went wrong',
-        'Could not connect right now. Please try again.'
-      );
+      console.log('=== AUTH ERROR ===', err);
+      Alert.alert('Something went wrong', 'Could not connect right now.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async (): Promise<void> => {
-    Alert.alert("Redirect URI", redirectUri);
     setLoading(true);
     try {
-      await promptAsync({
-        // @ts-ignore — useProxy is required for Expo Go
-        useProxy: true,
+      console.log('=== CALLING promptAsync ===');
+      const result = await promptAsync();
+      console.log('=== promptAsync RESOLVED ===', JSON.stringify(result));
+
+      const res = await fetch(API.register, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Student User',
+          email: `student${Date.now()}@college.edu`,
+          deviceToken: 'placeholder-device-token',
+        }),
       });
+
+      const data = await res.json();
+      await AsyncStorage.setItem('userId', data.userId);
+      navigation.navigate('WhatsApp1');
     } catch (err) {
+      console.log('=== promptAsync ERROR ===', err);
+      Alert.alert('Something went wrong', 'Could not connect right now.');
+    } finally {
       setLoading(false);
-      Alert.alert(
-        'Something went wrong',
-        'Could not start Google sign-in. Please try again.'
-      );
     }
   };
 

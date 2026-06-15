@@ -38,9 +38,9 @@ interface ProfileData {
 }
 
 const DEFAULT_PROFILE: ProfileData = {
-  name: 'Student',
+  name: 'Gurvansh',
   email: '',
-  sources: { whatsapp: false, gmail: false, classroom: false },
+  sources: { whatsapp: true, gmail: true, classroom: true },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

@@ -170,7 +170,7 @@ export const mockFeed = {
 
 export const mockProfile = {
   userId: 'mock-user-123',
-  name: 'Yatharth Gupta',
+  name: 'Gurvansh Gupta',
   email: 'yg6222@srmist.edu.in',
   sources: {
     whatsapp: true,
